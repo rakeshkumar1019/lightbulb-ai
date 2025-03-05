@@ -14,19 +14,18 @@ export class ChatPanel {
     }
 
     public static createOrShow() {
-        const column = vscode.window.activeTextEditor
-            ? vscode.window.activeTextEditor.viewColumn
-            : undefined;
-
         if (ChatPanel.currentPanel) {
-            ChatPanel.currentPanel._panel.reveal(column);
+            ChatPanel.currentPanel._panel.reveal(vscode.ViewColumn.Beside, true);
             return;
         }
 
         const panel = vscode.window.createWebviewPanel(
             'lightbulbAI',
             'Lightbulb AI Chat',
-            column || vscode.ViewColumn.One,
+            {
+                viewColumn: vscode.ViewColumn.Beside,
+                preserveFocus: true
+            },
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -63,24 +62,56 @@ export class ChatPanel {
                             padding-bottom: 20px;
                         }
                         .message {
-                            margin: 15px 0;
+                            margin: 3px 0;  /* Reduced from 5px to 3px */
                             padding: 16px;
                             border-radius: 8px;
-                            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-                            max-width: 85%;
                             animation: fadeIn 0.3s ease-in;
-                        }
-                        .user-message {
-                            background: var(--vscode-button-background);
-                            color: var(--vscode-button-foreground);
-                            margin-left: auto;
-                            border-bottom-right-radius: 4px;
-                        }
-                        .ai-message {
-                            background: var(--vscode-editor-background);
+                            margin-left: 0;
                             border: 1px solid var(--vscode-input-border);
-                            margin-right: auto;
                             border-bottom-left-radius: 4px;
+                        }
+                        
+                        .message-header {
+                            display: flex;
+                            align-items: center;
+                            margin-bottom: 8px;
+                            justify-content: flex-start;
+                            color: var(--vscode-editor-foreground); /* Changed to match text color */
+                            font-weight: bold; /* Made the header bold */
+                        }
+
+                        .message-header .username {
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            order: 1;
+                        }
+
+                        .message-header .timestamp {
+                            font-size: 0.8em;
+                            color: var(--vscode-descriptionForeground);
+                            margin-left: 8px; /* Change margin to left */
+                            order: 2; /* Move timestamp to right */
+                        }
+
+                        .avatar-icon {
+                            width: 24px;
+                            height: 24px;
+                            border-radius: 50%;
+                            background: var(--vscode-editor-background);
+                            padding: 2px;
+                            border: 1px solid var(--vscode-input-border);
+                        }
+
+                        .avatar-icon svg {
+                            width: 100%;
+                            height: 100%;
+                            fill: var(--vscode-editor-foreground);
+                        }
+
+                        .message-content {
+                            margin-top: 8px;
+                            color: var(--vscode-editor-foreground);
                         }
                         .ai-message pre {
                             background: var(--vscode-textCodeBlock-background);
@@ -235,7 +266,7 @@ export class ChatPanel {
                         function createThinkingIndicator() {
                             const indicator = document.createElement('div');
                             indicator.className = 'thinking-indicator';
-                            indicator.innerHTML = 'Thinking<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+                            indicator.innerHTML = 'Generating<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
                             return indicator;
                         }
 
@@ -254,10 +285,57 @@ export class ChatPanel {
                             }
                         }
 
+                        function formatTimestamp() {
+                            const now = new Date();
+                            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+
+                        function getUserAvatar() {
+                            return '<div class="avatar-icon">' +
+                                '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+                                '<path d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z"></path>' +
+                                '</svg>' +
+                                '</div>';
+                        }
+
+                        function getAIAvatar() {
+                            return '<div class="avatar-icon">' +
+                                '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+                                '<path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6C7.8 12.16 7 10.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.63-.8 3.16-2.15 4.1z"/>' +
+                                '</svg>' +
+                                '</div>';
+                        }
+
                         function addMessage(content, sender) {
                             const messageDiv = document.createElement('div');
                             messageDiv.className = 'message ' + sender + '-message markdown-body';
-                            messageDiv.innerHTML = content;
+                            
+                            const header = document.createElement('div');
+                            header.className = 'message-header';
+                            
+                            const username = document.createElement('div');
+                            username.className = 'username';
+                            
+                            if (sender === 'user') {
+                                username.innerHTML = getUserAvatar()+ "You";
+                            } else {
+                                username.innerHTML = getAIAvatar() + "Lightbulb AI";
+                            }
+                            
+                            const timestamp = document.createElement('span');
+                            timestamp.className = 'timestamp';
+                            timestamp.textContent = formatTimestamp();
+                            
+                            header.appendChild(username);
+                            header.appendChild(timestamp);
+                            
+                            const messageContent = document.createElement('div');
+                            messageContent.className = 'message-content';
+                            messageContent.innerHTML = content;
+                            
+                            messageDiv.appendChild(header);
+                            messageDiv.appendChild(messageContent);
+                            
                             messagesDiv.appendChild(messageDiv);
                             messagesDiv.scrollTop = messagesDiv.scrollHeight;
                         }
